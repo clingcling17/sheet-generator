@@ -115,9 +115,11 @@ class OncomineParser:
         
 
     def parse_oncomine_file(self):
+        dict = {
+            Col.MUTATION_TYPE.value: 'string'
+        }
         return pd.read_csv(self.oncomine_file, index_col='vcf.rownum',
-                           comment='#', sep='\s+', low_memory=False,
-                           keep_default_na=False)
+                           comment='#', sep='\s+', low_memory=False, dtype=dict)
 
 
 
@@ -161,7 +163,8 @@ class ReportGenerator:
         condition = f'`{Col.CALL}` == "POS"'\
             f' and `{Col.LOCATION}` not in ["intronic", "utr_3", "utr_5"]'\
             f' and `{Col.ROWTYPE}` in ["snp", "del", "ins", "complex", "mnp", "RNAExonTiles"]'\
-            f' and `{Col.MUTATION_TYPE}` not in ["synonymous", @nan]'
+            f' and `{Col.MUTATION_TYPE}`.notnull()'\
+            f' and `{Col.MUTATION_TYPE}` != "synonymous"'
         # tmb_gene not in 조건은 일단 생략함.
 
         snv = self.generate_filtered_dataframe(condition, columns)
@@ -261,9 +264,8 @@ class ReportGenerator:
 
     # omit nonexistent column
     def generate_filtered_dataframe(self, condition_expr, columns):
-        nan = np.nan
         column_names = map(lambda x: x.value, columns)
-        return self.df.query(condition_expr)[self.df.columns.intersection(column_names)]
+        return self.df.query(condition_expr, engine = 'python')[self.df.columns.intersection(column_names)]
     
 
     def populate_tier_default(self, row):
@@ -275,13 +277,13 @@ class ReportGenerator:
         hotspot = row[Col.HOTSPOT.value]
 
         tier = ''
-        
-        if 'benign' in clinical_significance.lower():
-            tier = TIER_4
-        elif clinical_significance == 'not_provided'\
-            or clinical_significance == 'Uncertain_significance'\
-            or (clinical_significance != None and 'conflicting' in clinical_significance.lower()):
-            tier = TIER_3_4
+        if (not pd.isna(clinical_significance)):
+            if 'benign' in clinical_significance.lower():
+                tier = TIER_4
+            elif clinical_significance == 'not_provided'\
+                or clinical_significance == 'Uncertain_significance'\
+                or 'conflicting' in clinical_significance.lower():
+                tier = TIER_3_4
         if hotspot == 'Deleterious' or hotspot == 'Hotspot':
             tier = TIER_1_2
 
@@ -335,8 +337,8 @@ def main():
 
     # parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
     # dataframe = parser.parse_oncomine_file()
-    # reportGen = ReportGenerator(dataframe, None)
-    # filtered_df = reportGen.generate_snv()
+    # reportGen = ReportGenerator(dataframe)
+    # filtered_df = reportGen.generate_fusion()
     # filtered_df.rename(Col.getReadableName, axis='columns', inplace=True)
     # print(filtered_df)
 
