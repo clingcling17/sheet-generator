@@ -170,6 +170,7 @@ class ReportGenerator:
         snv = self.generate_filtered_dataframe(condition, columns)
         if not snv.empty:
             snv[Col.TIER.value] = snv.apply(self.populate_tier_default, axis=1)
+            snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = 'IV'
         return snv
     
 
