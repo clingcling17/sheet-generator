@@ -1,4 +1,3 @@
-import os
 import sys
 import zipfile
 from pathlib import Path
@@ -6,9 +5,10 @@ import pandas as pd
 import numpy as np
 from enum import Enum
 from unittest import TestCase
+from functools import total_ordering
 
 
-class Columns(Enum) :
+class Columns(Enum):
      INFO_1_GENE_NAME = ('INFO.1.GENE_NAME', 'Gene_name')
      FUNC1_GENE_NAME = ('FUNC1.gene', 'Gene_name')
      AA_CHANGE = ('FUNC1.protein', 'AA_Change')
@@ -65,6 +65,25 @@ class Columns(Enum) :
 
 
 Col = Columns
+
+
+
+@total_ordering
+class Tiers(Enum): 
+    TIER_1_2 = 'I/II'
+    TIER_3_4 = 'III/IV'
+    TIER_4 = 'IV'
+
+    @property
+    def index(self):
+        return list(Tiers).index(self)
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.index < other.index
+
+
+assert(Tiers.TIER_1_2 < Tiers.TIER_3_4)
 
 
 
@@ -163,14 +182,14 @@ class ReportGenerator:
         condition = f'`{Col.CALL}` == "POS"'\
             f' and `{Col.LOCATION}` not in ["intronic", "utr_3", "utr_5"]'\
             f' and `{Col.ROWTYPE}` in ["snp", "del", "ins", "complex", "mnp", "RNAExonTiles"]'\
-            f' and `{Col.MUTATION_TYPE}`.notnull()'\
+            f' and `{Col.MUTATION_TYPE}`.notna()'\
             f' and `{Col.MUTATION_TYPE}` != "synonymous"'
         # tmb_gene not in 조건은 일단 생략함.
 
         snv = self.generate_filtered_dataframe(condition, columns)
         if not snv.empty:
             snv[Col.TIER.value] = snv.apply(self.populate_tier_default, axis=1)
-            snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = 'IV'
+            snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = Tiers.TIER_4
         return snv
     
 
@@ -210,7 +229,7 @@ class ReportGenerator:
         if not cnv.empty:
             cnv[Col.TIER.value] = cnv.apply(self.populate_tier_default, axis=1)
             cnv.loc[(cnv[Col.ROWTYPE.value] == 'AMP') & (cnv[Col.FUNC1_GENE_NAME.value].isin(tier_2_3_gene_names)),
-                      Col.TIER.value] = 'I/II'
+                      Col.TIER.value] = Tiers.TIER_1_2
         return cnv
     
 
@@ -246,7 +265,7 @@ class ReportGenerator:
         if not fusion.empty:
             fusion[Col.TIER.value] = fusion.apply(self.populate_tier_default, axis=1)
             fusion.loc[fusion[Col.INFO_1_GENE_NAME.value]
-                       .str.startswith(tier_2_3_gene_names), Col.TIER.value] = 'I/II'
+                       .str.startswith(tier_2_3_gene_names), Col.TIER.value] = Tiers.TIER_1_2
         return fusion
     
 
@@ -266,27 +285,23 @@ class ReportGenerator:
     # omit nonexistent column
     def generate_filtered_dataframe(self, condition_expr, columns):
         column_names = map(lambda x: x.value, columns)
-        return self.df.query(condition_expr, engine = 'python')[self.df.columns.intersection(column_names)]
+        return self.df.query(condition_expr)[self.df.columns.intersection(column_names)]
     
 
     def populate_tier_default(self, row):
-        TIER_1_2 = 'I/II'
-        TIER_3_4 = 'III/IV'
-        TIER_4 = 'IV'
-
         clinical_significance = row[Col.CLINICAL_SIGNIFICANCE.value]
         hotspot = row[Col.HOTSPOT.value]
 
         tier = ''
-        if (not pd.isna(clinical_significance)):
+        if pd.notna(clinical_significance):
             if 'benign' in clinical_significance.lower():
-                tier = TIER_4
+                tier = Tiers.TIER_4
             elif clinical_significance == 'not_provided'\
                 or clinical_significance == 'Uncertain_significance'\
                 or 'conflicting' in clinical_significance.lower():
-                tier = TIER_3_4
+                tier = Tiers.TIER_3_4
         if hotspot == 'Deleterious' or hotspot == 'Hotspot':
-            tier = TIER_1_2
+            tier = Tiers.TIER_1_2
 
         return tier        
     
@@ -313,35 +328,35 @@ class Tests(TestCase):
         parser.parse_oncomine_file()
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit('Please check arguments number.\n'\
-                 + 'Usage: run.exe Mxx-xxxx.zip /destination/directory')
-    file_path = sys.argv[1]
-    dest_path = sys.argv[2]
-    print('File path: ' + file_path)
-    print('Destination path: ' + dest_path)
+    # if len(sys.argv) != 3:
+    #     sys.exit('Please check arguments number.\n'\
+    #              + 'Usage: run.exe Mxx-xxxx.zip /destination/directory')
+    # file_path = sys.argv[1]
+    # dest_path = sys.argv[2]
+    # print('File path: ' + file_path)
+    # print('Destination path: ' + dest_path)
 
-    fileProcessor = FileProcessor(file_path, dest_path)
-    case_name = fileProcessor.case_name
-    dest_path = fileProcessor.unzip_to_destination_and_normalize()
-    oncomine_file = fileProcessor.find_oncomine_file()
+    # fileProcessor = FileProcessor(file_path, dest_path)
+    # case_name = fileProcessor.case_name
+    # dest_path = fileProcessor.unzip_to_destination_and_normalize()
+    # oncomine_file = fileProcessor.find_oncomine_file()
 
-    parser = OncomineParser(oncomine_file)
-    dataframe = parser.parse_oncomine_file()
-    reportGenerator = ReportGenerator(dataframe)
-    reports = reportGenerator.generate_report()
-
-    file = Path(dest_path, 'result', case_name + '.xlsx')
-    writer = ExcelWriter(reports, file)
-    writer.write()
-    print('Generated report worksheet: ' + str(file))
-
-    # parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
+    # parser = OncomineParser(oncomine_file)
     # dataframe = parser.parse_oncomine_file()
-    # reportGen = ReportGenerator(dataframe)
-    # filtered_df = reportGen.generate_fusion()
-    # filtered_df.rename(Col.getReadableName, axis='columns', inplace=True)
-    # print(filtered_df)
+    # reportGenerator = ReportGenerator(dataframe)
+    # reports = reportGenerator.generate_report()
+
+    # file = Path(dest_path, 'result', case_name + '.xlsx')
+    # writer = ExcelWriter(reports, file)
+    # writer.write()
+    # print('Generated report worksheet: ' + str(file))
+
+    parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
+    dataframe = parser.parse_oncomine_file()
+    reportGen = ReportGenerator(dataframe)
+    filtered_df = reportGen.generate_snv()
+    filtered_df.rename(Col.getReadableName, axis='columns', inplace=True)
+    print(filtered_df)
 
 
 class ReportTextGenerator():
@@ -357,12 +372,12 @@ class ReportTextGenerator():
         cnv = self.cnv
         fusion = self.fusion
 
-        tier_1_2_mutation = snv.loc[snv[Col.TIER.value] == 'I/II'][
+        tier_1_2_mutation = snv.loc[snv[Col.TIER.value] == Tiers.TIER_1_2][
             Col.FUNC1_GENE_NAME.value, Col.AA_CHANGE.value, 
             Col.NUCLEOTIDE_CHANGE.value, Col.TIER.value
         ]
         
-        tier_1_2_amplification = cnv.loc[cnv[Col.TIER.value] == 'I/II'][
+        tier_1_2_amplification = cnv.loc[cnv[Col.TIER.value] == Tiers.TIER_1_2][
             Col.FUNC1_GENE_NAME.value, Col.COPY_NUMBER.value, Col.TIER.value
         ]
         
