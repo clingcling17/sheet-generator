@@ -152,9 +152,9 @@ class OncomineParser:
         dtype[Col.COPY_NUMBER.value] = pd.UInt8Dtype
         dtype[Col.QUALITY.value] = pd.Float32Dtype
     
-        return pd.read_csv(self.oncomine_file, index_col='vcf.rownum',
-                           comment='#', sep='\s+',  dtype=dtype, 
-                           na_values = ['.'], low_memory=False)
+        return pd.read_table(self.oncomine_file, index_col='vcf.rownum',
+                             dtype=dtype, na_values = ['.'], comment='#',
+                             low_memory=False)
 
 
 class ReportGenerator:
