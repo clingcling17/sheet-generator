@@ -2,10 +2,10 @@ import sys
 import zipfile
 from pathlib import Path
 import pandas as pd
-import numpy as np
 from enum import Enum
 from unittest import TestCase
 from functools import total_ordering
+from collections import defaultdict
 
 
 class Columns(Enum):
@@ -77,6 +77,9 @@ class Tiers(Enum):
     @property
     def index(self):
         return list(Tiers).index(self)
+    
+    def __str__(self):
+        return self.value
 
     def __lt__(self, other):
         if self.__class__ is other.__class__:
@@ -133,13 +136,25 @@ class OncomineParser:
         self.oncomine_file = oncomine_file
         
 
-    def parse_oncomine_file(self):
-        dict = {
-            Col.MUTATION_TYPE.value: 'string'
-        }
-        return pd.read_csv(self.oncomine_file, index_col='vcf.rownum',
-                           comment='#', sep='\s+', low_memory=False, dtype=dict)
+    ## https://pandas.pydata.org/docs/user_guide/basics.html#basics-dtypes
 
+    def parse_oncomine_file(self):
+        def def_type():
+            return pd.StringDtype
+
+        dtype = defaultdict(def_type())
+        dtype[Col.VAF.value] = pd.Float32Dtype
+        dtype[Col.TOTAL_DEPTH.value] = pd.UInt16Dtype
+        dtype[Col.POSITION.value] = pd.UInt32Dtype
+        dtype[Col.END_POSITION.value] = pd.UInt32Dtype
+        dtype[Col.LENGTH.value] = pd.UInt32Dtype
+        dtype[Col.EXON_NUMBER.value] = pd.UInt8Dtype
+        dtype[Col.COPY_NUMBER.value] = pd.UInt8Dtype
+        dtype[Col.QUALITY.value] = pd.Float32Dtype
+    
+        return pd.read_csv(self.oncomine_file, index_col='vcf.rownum',
+                           comment='#', sep='\s+',  dtype=dtype, 
+                           na_values = ['.'], low_memory=False)
 
 
 class ReportGenerator:
@@ -300,8 +315,9 @@ class ReportGenerator:
                 or clinical_significance == 'Uncertain_significance'\
                 or 'conflicting' in clinical_significance.lower():
                 tier = Tiers.TIER_3_4
-        if hotspot == 'Deleterious' or hotspot == 'Hotspot':
-            tier = Tiers.TIER_1_2
+        if pd.notna(hotspot):
+            if hotspot == 'Deleterious' or hotspot == 'Hotspot':
+                tier = Tiers.TIER_1_2
 
         return tier        
     
@@ -328,35 +344,35 @@ class Tests(TestCase):
         parser.parse_oncomine_file()
 
 def main():
-    # if len(sys.argv) != 3:
-    #     sys.exit('Please check arguments number.\n'\
-    #              + 'Usage: run.exe Mxx-xxxx.zip /destination/directory')
-    # file_path = sys.argv[1]
-    # dest_path = sys.argv[2]
-    # print('File path: ' + file_path)
-    # print('Destination path: ' + dest_path)
+    if len(sys.argv) != 3:
+        sys.exit('Please check arguments number.\n'\
+                 + 'Usage: run.exe Mxx-xxxx.zip /destination/directory')
+    file_path = sys.argv[1]
+    dest_path = sys.argv[2]
+    print('File path: ' + file_path)
+    print('Destination path: ' + dest_path)
 
-    # fileProcessor = FileProcessor(file_path, dest_path)
-    # case_name = fileProcessor.case_name
-    # dest_path = fileProcessor.unzip_to_destination_and_normalize()
-    # oncomine_file = fileProcessor.find_oncomine_file()
+    fileProcessor = FileProcessor(file_path, dest_path)
+    case_name = fileProcessor.case_name
+    dest_path = fileProcessor.unzip_to_destination_and_normalize()
+    oncomine_file = fileProcessor.find_oncomine_file()
 
-    # parser = OncomineParser(oncomine_file)
-    # dataframe = parser.parse_oncomine_file()
-    # reportGenerator = ReportGenerator(dataframe)
-    # reports = reportGenerator.generate_report()
-
-    # file = Path(dest_path, 'result', case_name + '.xlsx')
-    # writer = ExcelWriter(reports, file)
-    # writer.write()
-    # print('Generated report worksheet: ' + str(file))
-
-    parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
+    parser = OncomineParser(oncomine_file)
     dataframe = parser.parse_oncomine_file()
-    reportGen = ReportGenerator(dataframe)
-    filtered_df = reportGen.generate_snv()
-    filtered_df.rename(Col.getReadableName, axis='columns', inplace=True)
-    print(filtered_df)
+    reportGenerator = ReportGenerator(dataframe)
+    reports = reportGenerator.generate_report()
+
+    file = Path(dest_path, 'result', case_name + '.xlsx')
+    writer = ExcelWriter(reports, file)
+    writer.write()
+    print('Generated report worksheet: ' + str(file))
+
+    # parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
+    # dataframe = parser.parse_oncomine_file()
+    # reportGen = ReportGenerator(dataframe)
+    # filtered_df = reportGen.generate_snv()
+    # filtered_df.rename(Col.getReadableName, axis='columns', inplace=True)
+    # print(filtered_df)
 
 
 class ReportTextGenerator():
