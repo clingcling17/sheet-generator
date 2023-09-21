@@ -209,9 +209,9 @@ class ReportGenerator:
         snv.insert(4, Col.TIER.value, np.nan)
         if not snv.empty:
             snv[Col.TIER.value] = snv.apply(self.populate_tier_default, axis=1)
-            snv.loc[(snv[Col.FUNC1_GENE_NAME.value] == 'UGT1A1')
-                    & (snv[Col.AA_CHANGE.value] == 'p.Gly71Arg'), Col.TIER.value] = Tiers.TIER_3
-            snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = Tiers.TIER_4
+            snv.loc[(snv[Col.FUNC1_GENE_NAME.value] == 'UGT1A1') 
+            & (snv[Col.AA_CHANGE.value] == 'p.Gly71Arg'), Col.TIER.value] = Tiers.TIER_3.value
+            snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = Tiers.TIER_4.value
         return snv
     
 
@@ -252,7 +252,7 @@ class ReportGenerator:
         if not cnv.empty:
             cnv[Col.TIER.value] = cnv.apply(self.populate_tier_default, axis=1)
             cnv.loc[(cnv[Col.ROWTYPE.value] == 'AMP') & (cnv[Col.FUNC1_GENE_NAME.value].isin(tier_2_3_gene_names)),
-                      Col.TIER.value] = Tiers.TIER_1_2
+                      Col.TIER.value] = Tiers.TIER_1_2.value
         return cnv
     
 
@@ -288,7 +288,7 @@ class ReportGenerator:
         if not fusion.empty:
             fusion[Col.TIER.value] = fusion.apply(self.populate_tier_default, axis=1)
             fusion.loc[fusion[Col.INFO_1_GENE_NAME.value]
-                       .str.startswith(tier_2_3_gene_names), Col.TIER.value] = Tiers.TIER_1_2
+                       .str.startswith(tier_2_3_gene_names), Col.TIER.value] = Tiers.TIER_1_2.value
         return fusion
     
 
@@ -320,17 +320,17 @@ class ReportGenerator:
         tier = ''
         if pd.notna(clinical_significance):
             if 'benign' in clinical_significance.lower():
-                tier = Tiers.TIER_4
+                tier = Tiers.TIER_4.value
             elif clinical_significance == 'not_provided'\
                 or clinical_significance == 'Uncertain_significance'\
                 or 'conflicting' in clinical_significance.lower():
-                tier = Tiers.TIER_3_4
+                tier = Tiers.TIER_3_4.value
         if pd.notna(hotspot):
             if hotspot == 'Deleterious' or hotspot == 'Hotspot':
-                tier = Tiers.TIER_1_2
+                tier = Tiers.TIER_1_2.value
 
-        return tier        
-    
+        return tier
+
 
 
 # TODO file existence check
@@ -372,7 +372,7 @@ class ResultInfo:
     def print(self, path):
         cond1 = self.cond1
         cond2 = self.cond2
-        
+
         with open(path, "xt", encoding="utf8") as f:
             mut_1 = self.mutation.query(cond1)
             amp_1 = self.amplification.query(cond1)
@@ -380,7 +380,7 @@ class ResultInfo:
             mut_2 = self.mutation.query(cond2)
             amp_2 = self.amplification.query(cond2)
             fus_2 = self.fusion.query(cond2)
-            
+
             # TODO add GeneB
             sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist() \
                     + fus_1['GeneA'].tolist()
@@ -391,7 +391,7 @@ class ResultInfo:
                 empty = False
                 if (data[i].empty):
                     empty = True
-                data[i] = data[i].to_string(index=False)
+                data[i] = data[i].to_string(index=False, na_rep='')
                 if (empty):
                     data[i] = data[i].replace('Empty DataFrame', 'Not Found')
                     data[i] = data[i].replace('Index: []', '')
@@ -465,7 +465,8 @@ def main():
     fus = fus[[Col.INFO_1_GENE_NAME.value, Col.TOTAL_READ.value, Col.TIER.value]]
     fus.columns = ['GeneA', 'Total Read', 'Tier']
 
-    result_info = ResultInfo(mut, amp, fus, '`Tier` in ["I", "II"]', '`Tier` not in ["I", "II"]')
+    print(f'`Tier` == "{Tiers.TIER_3_4}"')
+    result_info = ResultInfo(mut, amp, fus, '`Tier` == "I/II"', '`Tier` not in ["I/II", "IV"]')
     result_text_file = Path(dest_path, "result.txt")
     result_info.print(result_text_file)
     print('Generated result text: ' + str(result_text_file))
@@ -478,41 +479,6 @@ def main():
     # print(filtered_df)
 
 
-class ReportTextGenerator():
-
-    def __init__(self, snv, cnv, fusion, file):
-        self.snv = snv
-        self.cnv = cnv
-        self.fusion = fusion
-        self.file = file
-
-    def print(self):
-        snv = self.snv
-        cnv = self.cnv
-        fusion = self.fusion
-
-        tier_1_2_mutation = snv.loc[snv[Col.TIER.value] == Tiers.TIER_1_2][
-            Col.FUNC1_GENE_NAME.value, Col.AA_CHANGE.value, 
-            Col.NUCLEOTIDE_CHANGE.value, Col.TIER.value
-        ]
-        
-        tier_1_2_amplification = cnv.loc[cnv[Col.TIER.value] == Tiers.TIER_1_2][
-            Col.FUNC1_GENE_NAME.value, Col.COPY_NUMBER.value, Col.TIER.value
-        ]
-        
-        # tier_1_2_fusion = fusion.loc[fusion[Col.TIER.value] == 'I/II'][
-        #     Col.INFO_1_GENE_NAME.value, Col.CHROMOSOME.value, Col.GENE
-        # ]
-
-
-    def printMutation(self):
-        f = self.file
-        f.write('(1)Mutation\n')
-        self.snv.to_csv(f, sep = '\t', index = False, columns = [
-            Col.FUNC1_GENE_NAME.value, Col.AA_CHANGE.value, 
-            Col.NUCLEOTIDE_CHANGE.value, Col.VAF.value, Col.TIER.value
-            ])
-        f.write('\n')
 
 if __name__ == "__main__":
     main()
