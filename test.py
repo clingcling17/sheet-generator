@@ -384,6 +384,8 @@ class ResultInfo:
             # TODO add GeneB
             sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist() \
                     + fus_1['GeneA'].tolist()
+            sig_bio = set(sig_bio)
+            sig_bio = list(sig_bio)
             
             data = [mut_1, amp_1, fus_1, mut_2, amp_2, fus_2]
     
