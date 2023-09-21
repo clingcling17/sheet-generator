@@ -104,7 +104,7 @@ class FileProcessor:
         if self.dest_dir.exists():
             sys.exit('The specified directory %s already exists.' % self.dest_dir)
         
-        self.dest_dir.mkdir(parents=True, exist_ok=True)        
+        self.dest_dir.mkdir(parents=True, exist_ok=True)
 
         zipdata = zipfile.ZipFile(self.file_path)
         zipinfos = zipdata.infolist()
@@ -203,8 +203,8 @@ class ReportGenerator:
             f' and `{Col.MUTATION_TYPE}` != "synonymous"'
         # tmb_gene not in 조건은 일단 생략함.
 
-        snv.insert(4, Col.TIER.value, np.nan)
         snv = self.generate_filtered_dataframe(condition, columns)
+        snv.insert(4, Col.TIER.value, np.nan)
         if not snv.empty:
             snv[Col.TIER.value] = snv.apply(self.populate_tier_default, axis=1)
             snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = Tiers.TIER_4
@@ -334,7 +334,6 @@ class ExcelWriter:
         self.file = file
 
     def write(self):
-        self.file.parent.mkdir(parents=True)
         with pd.ExcelWriter(self.file, engine='xlsxwriter') as writer:
             for key in self.dataframes:
                 df = self.dataframes[key].rename(Col.getReadableName, axis='columns')
@@ -360,7 +359,7 @@ def main():
     case_name = fileProcessor.case_name
     dest_path = fileProcessor.unzip_to_destination_and_normalize()
 
-    print('Destination path: ' + dest_path)
+    print('Destination path: ' + str(dest_path))
     oncomine_file = fileProcessor.find_oncomine_file()
 
     parser = OncomineParser(oncomine_file)
