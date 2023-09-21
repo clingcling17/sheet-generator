@@ -4,10 +4,10 @@ import zipfile
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import collections
 from enum import Enum
 from unittest import TestCase
 from functools import total_ordering
-from collections import defaultdict
 
 
 class Columns(Enum):
@@ -144,7 +144,7 @@ class OncomineParser:
         def def_type():
             return pd.StringDtype
 
-        dtype = defaultdict(def_type())
+        dtype = collections.defaultdict(def_type())
         dtype[Col.VAF.value] = pd.Float32Dtype
         dtype[Col.TOTAL_DEPTH.value] = pd.UInt16Dtype
         dtype[Col.POSITION.value] = pd.UInt32Dtype
@@ -304,7 +304,9 @@ class ReportGenerator:
     # omit nonexistent column
     def generate_filtered_dataframe(self, condition_expr, columns):
         column_names = map(lambda x: x.value, columns)
-        return self.df.query(condition_expr)[self.df.columns.intersection(column_names)]
+        intersection = collections.Counter(column_names) & collections.Counter(self.df.columns)
+        intersected_list = list(intersection.elements())
+        return self.df.query(condition_expr)[intersected_list]
     
 
     def populate_tier_default(self, row):
