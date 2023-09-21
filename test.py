@@ -1,3 +1,4 @@
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -347,12 +348,13 @@ class Tests(TestCase):
         parser.parse_oncomine_file()
 
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 2:
         sys.exit('Please check arguments number.\n'\
-                 + 'Usage: run.exe Mxx-xxxx.zip /destination/directory')
+                 + 'Usage: run.exe Mxx-xxxx.zip')
     file_path = sys.argv[1]
-    dest_path = sys.argv[2]
+    # dest_path = sys.argv[2]
     print('File path: ' + file_path)
+    dest_path = os.getcwd()
     print('Destination path: ' + dest_path)
 
     fileProcessor = FileProcessor(file_path, dest_path)
