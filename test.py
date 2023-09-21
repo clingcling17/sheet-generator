@@ -487,7 +487,8 @@ def main():
     grouped = fus.groupby(Col.TOTAL_READ.value).agg({Col.INFO_1_GENE_NAME.value:list, chbr: list, 'Tier': list})
     grouped.columns = ['Gene', chbr, 'Tier']
     grouped = grouped.apply(pd.Series.explode, axis=1)
-    grouped.columns = ['GeneA', 'GeneB', chbr + 'A', chbr + 'B', 'TierA', 'TierB']
+    grouped.reset_index(inplace=True)
+    grouped.columns = ['Total Read', 'GeneA', 'GeneB', chbr + 'A', chbr + 'B', 'TierA', 'TierB']
 
     def highest(row):
         tiers = [row['TierA'], row['TierB']]
@@ -499,11 +500,10 @@ def main():
             return Tiers.TIER_3_4.value
         return ''
     grouped['Tier'] = grouped.apply(highest, axis=1)
-
-    fus = grouped[['GeneA', chbr + 'A', 'GeneB', chbr + 'B', 'Tier']]
+    
+    fus = grouped[['GeneA', chbr + 'A', 'GeneB', chbr + 'B', 'Total Read', 'Tier']]
     
     # grouped.columns = [f'{col}{chr(i + 97)}' for i, col in enumerate(grouped.columns)]
-    # print(fus)
 
     result_info = ResultInfo(mut, amp, fus, '`Tier` == "I/II"', '`Tier` not in ["I/II", "IV"]', fus_sig_gene)
     result_text_file = Path(dest_path, "result.txt")
