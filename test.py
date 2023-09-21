@@ -355,6 +355,7 @@ class Tests(TestCase):
 
 class ResultInfo:
     """결과 출력에 사용되는 정보"""
+    # meta: dict
     mutation: pd.DataFrame
     amplification: pd.DataFrame
     fusion: pd.DataFrame
@@ -362,6 +363,7 @@ class ResultInfo:
     cond2: str
 
     def __init__(self, mutation, amplification, fusion, cond1, cond2):
+        # self.meta = meta
         self.mutation = mutation
         self.amplification = amplification
         self.fusion = fusion
@@ -398,9 +400,12 @@ class ResultInfo:
                     data[i] = data[i].replace('Empty DataFrame', 'Not Found')
                     data[i] = data[i].replace('Index: []', '')
 
+            # metastr = ''
+            # for key in self.meta:
+            #     metastr = metastr + key + ':' + self.meta[key] + '\n'
             
             s = 'II. 검사결과\n'\
-                'I. Clinically significant biomarkers(Tier I, II)\n'\
+                '1. Clinically significant biomarkers(Tier I, II)\n'\
                 '(1)Mutation\n'\
                 f'{data[0]}\n\n'\
                 '(2)Amplification\n'\
@@ -497,7 +502,7 @@ def main():
     fus = grouped[['GeneA', chbr + 'A', 'GeneB', chbr + 'B', 'Tier']]
     
     # grouped.columns = [f'{col}{chr(i + 97)}' for i, col in enumerate(grouped.columns)]
-    print(fus)
+    # print(fus)
 
     result_info = ResultInfo(mut, amp, fus, '`Tier` == "I/II"', '`Tier` not in ["I/II", "IV"]')
     result_text_file = Path(dest_path, "result.txt")
