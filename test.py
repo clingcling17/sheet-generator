@@ -8,6 +8,7 @@ import collections
 from enum import Enum
 from unittest import TestCase
 from functools import total_ordering
+from dataclasses import dataclass
 
 
 class Columns(Enum):
@@ -73,6 +74,7 @@ Col = Columns
 @total_ordering
 class Tiers(Enum): 
     TIER_1_2 = 'I/II'
+    TIER_3 = 'III'
     TIER_3_4 = 'III/IV'
     TIER_4 = 'IV'
 
@@ -348,6 +350,79 @@ class Tests(TestCase):
         parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
         parser.parse_oncomine_file()
 
+
+class ResultInfo:
+    """결과 출력에 사용되는 정보"""
+    mutation: pd.DataFrame
+    amplification: pd.DataFrame
+    fusion: pd.DataFrame
+    cond1: str
+    cond2: str
+
+    def __init__(self, mutation, amplification, fusion, cond1, cond2):
+        self.mutation = mutation
+        self.amplification = amplification
+        self.fusion = fusion
+        self.cond1 = cond1
+        self.cond2 = cond2
+
+
+    def print(self, path):
+        cond1 = self.cond1
+        cond2 = self.cond2
+        
+        with open(path, "xt", encoding="utf8") as f:
+            mut_1 = self.mutation.query(cond1)
+            amp_1 = self.amplification.query(cond1)
+            fus_1 = self.fusion.query(cond1)
+            mut_2 = self.mutation.query(cond2)
+            amp_2 = self.amplification.query(cond2)
+            fus_2 = self.fusion.query(cond2)
+            
+            # TODO add GeneB
+            sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist() \
+                    + fus_1['GeneA'].tolist()
+            
+            data = [mut_1, amp_1, fus_1, mut_2, amp_2, fus_2]
+    
+            for i in range(len(data)):
+                empty = False
+                if (data[i].empty):
+                    empty = True
+                data[i] = data[i].to_string(index=False)
+                if (empty):
+                    data[i] = data[i].replace('Empty DataFrame', 'Not Found')
+                    data[i] = data[i].replace('Index: []', '')
+
+            
+            s = 'II. 검사결과\n'\
+                'I. Clinically significant biomarkers(Tier I, II)\n'\
+                '(1)Mutation\n'\
+                f'{data[0]}\n\n'\
+                '(2)Amplification\n'\
+                '*Deletion의 경우 이미지 보고서를 참고해 주시기 바랍니다.\n'\
+                f'{data[1]}\n\n'\
+                '(3)Fusion\n'\
+                f'{data[2]}\n\n'\
+                '2. Prevalent cancer biomarkers of unknown significance(Tier III)\n'\
+                '(1)Mutation\n'\
+                f'{data[3]}\n\n'\
+                '(2)Amplification\n'\
+                '*Deletion의 경우 이미지 보고서를 참고해 주시기 바랍니다.\n'\
+                f'{data[4]}\n\n'\
+                '(3)Fusion\n'\
+                f'{data[5]}\n\n\n'\
+                'III. 해석적 보고\n\n'\
+                '본 검사에서 발견된 유전자 변이 중에서 현재까지 약제선택 또는 '\
+                f'임상시험에 대한 정보가 있는 유전자는 {sig_bio} 입니다.\n'\
+                'CNV alteration 중 Deletion의 경우 이미지 보고서를 참조해주시기 바랍니다.\n'
+                
+            f.write(s)
+            
+
+            
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit('Please check arguments number.\n'\
@@ -357,22 +432,41 @@ def main():
     print('File path: ' + file_path)
     dest_path = os.getcwd()
 
-    fileProcessor = FileProcessor(file_path, dest_path)
-    case_name = fileProcessor.case_name
-    dest_path = fileProcessor.unzip_to_destination_and_normalize()
+    file_processor = FileProcessor(file_path, dest_path)
+    case_name = file_processor.case_name
+    dest_path = file_processor.unzip_to_destination_and_normalize()
 
     print('Destination path: ' + str(dest_path))
-    oncomine_file = fileProcessor.find_oncomine_file()
+    oncomine_file = file_processor.find_oncomine_file()
 
     parser = OncomineParser(oncomine_file)
     dataframe = parser.parse_oncomine_file()
-    reportGenerator = ReportGenerator(dataframe)
-    reports = reportGenerator.generate_report()
+    report_generator = ReportGenerator(dataframe)
+    reports = report_generator.generate_report()
 
     file = Path(dest_path, case_name + '.xlsx')
     writer = ExcelWriter(reports, file)
     writer.write()
     print('Generated report worksheet: ' + str(file))
+
+    mut = reports['SNV']
+    mut = mut[[Col.FUNC1_GENE_NAME.value, Col.AA_CHANGE.value, 
+               Col.NUCLEOTIDE_CHANGE.value, Col.VAF.value, Col.TIER.value]]
+    mut.columns = ['Gene', 'Amino acid change', 'Nucleotide change',
+                   'Variant allele frequency(%)', 'Tier']
+    
+    amp = reports['CNV']
+    amp = amp[[Col.FUNC1_GENE_NAME.value, Col.COPY_NUMBER.value, Col.TIER.value]]
+    amp.columns = ['Gene', 'Estimated copy number', 'Tier']
+
+    fus = reports['Fusion']
+    fus = fus[[Col.INFO_1_GENE_NAME.value, Col.TOTAL_READ.value, Col.TIER.value]]
+    fus.columns = ['GeneA', 'Total Read', 'Tier']
+
+    result_info = ResultInfo(mut, amp, fus, '`Tier` in ["I", "II"]', '`Tier` not in ["I", "II"]')
+    result_text_file = Path(dest_path, "result.txt")
+    result_info.print(result_text_file)
+    print('Generated result text: ' + str(result_text_file))
 
     # parser = OncomineParser('M23-6180_v1_M23-6180_RNA_v1_Non-Filtered_2023-08-07_21-01-24-oncomine.tsv')
     # dataframe = parser.parse_oncomine_file()
