@@ -209,6 +209,8 @@ class ReportGenerator:
         snv.insert(4, Col.TIER.value, np.nan)
         if not snv.empty:
             snv[Col.TIER.value] = snv.apply(self.populate_tier_default, axis=1)
+            snv.loc[(snv[Col.FUNC1_GENE_NAME.value] == 'UGT1A1')
+                    & (snv[Col.AA_CHANGE.value] == 'p.Gly71Arg'), Col.TIER.value] = Tiers.TIER_3
             snv.loc[snv[Col.TOTAL_DEPTH.value] < 100, Col.TIER.value] = Tiers.TIER_4
         return snv
     
