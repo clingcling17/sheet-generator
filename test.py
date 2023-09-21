@@ -355,11 +355,12 @@ def main():
     # dest_path = sys.argv[2]
     print('File path: ' + file_path)
     dest_path = os.getcwd()
-    print('Destination path: ' + dest_path)
 
     fileProcessor = FileProcessor(file_path, dest_path)
     case_name = fileProcessor.case_name
     dest_path = fileProcessor.unzip_to_destination_and_normalize()
+
+    print('Destination path: ' + dest_path)
     oncomine_file = fileProcessor.find_oncomine_file()
 
     parser = OncomineParser(oncomine_file)
@@ -367,7 +368,7 @@ def main():
     reportGenerator = ReportGenerator(dataframe)
     reports = reportGenerator.generate_report()
 
-    file = Path(dest_path, 'result', case_name + '.xlsx')
+    file = Path(dest_path, case_name + '.xlsx')
     writer = ExcelWriter(reports, file)
     writer.write()
     print('Generated report worksheet: ' + str(file))
