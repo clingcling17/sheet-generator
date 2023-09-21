@@ -454,8 +454,9 @@ def main():
     print('Generated report worksheet: ' + str(file))
 
     mut = reports['SNV']
-    mut = mut[[Col.FUNC1_GENE_NAME.value, Col.AA_CHANGE.value, 
+    mut = mut[[Col.FUNC1_GENE_NAME.value, Col.AA_CHANGE.value,
                Col.NUCLEOTIDE_CHANGE.value, Col.VAF.value, Col.TIER.value]]
+    mut[Col.VAF.value] = mut[Col.VAF.value].map('{:.1%}'.format)
     mut.columns = ['Gene', 'Amino acid change', 'Nucleotide change',
                    'Variant allele frequency(%)', 'Tier']
     
