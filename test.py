@@ -361,14 +361,16 @@ class ResultInfo:
     fusion: pd.DataFrame
     cond1: str
     cond2: str
+    fus_sig_gene: list
 
-    def __init__(self, mutation, amplification, fusion, cond1, cond2):
+    def __init__(self, mutation, amplification, fusion, cond1, cond2, fus_sig_gene):
         # self.meta = meta
         self.mutation = mutation
         self.amplification = amplification
         self.fusion = fusion
         self.cond1 = cond1
         self.cond2 = cond2
+        self.fus_sig_gene = fus_sig_gene
 
 
     def print(self, path):
@@ -384,8 +386,7 @@ class ResultInfo:
             fus_2 = self.fusion.query(cond2)
 
             # TODO add GeneB
-            sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist()
-                    # + fus_1['GeneA'].tolist()
+            sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist() + self.fus_sig_gene
             sig_bio = set(sig_bio)
             sig_bio = list(sig_bio)
             
@@ -476,12 +477,12 @@ def main():
         return ch + ':' + br
 
     fus = reports['Fusion']
+    fus_sig_gene = fus.query('`Tier` == "I/II"')[Col.INFO_1_GENE_NAME.value].tolist()
+
     chbr = 'Chromosome:Breakpoint'
     fus[chbr] = fus.apply(concat_chbr, axis=1)
     fus = fus.assign(chbr=fus[Col.CHROMOSOME.value] + ':' + fus[Col.POSITION.value].to_string())
     fus = fus[[Col.INFO_1_GENE_NAME.value, chbr, Col.TOTAL_READ.value, Col.TIER.value]]
-    
-    
 
     grouped = fus.groupby(Col.TOTAL_READ.value).agg({Col.INFO_1_GENE_NAME.value:list, chbr: list, 'Tier': list})
     grouped.columns = ['Gene', chbr, 'Tier']
@@ -504,7 +505,7 @@ def main():
     # grouped.columns = [f'{col}{chr(i + 97)}' for i, col in enumerate(grouped.columns)]
     # print(fus)
 
-    result_info = ResultInfo(mut, amp, fus, '`Tier` == "I/II"', '`Tier` not in ["I/II", "IV"]')
+    result_info = ResultInfo(mut, amp, fus, '`Tier` == "I/II"', '`Tier` not in ["I/II", "IV"]', fus_sig_gene)
     result_text_file = Path(dest_path, "result.txt")
     result_info.print(result_text_file)
     print('Generated result text: ' + str(result_text_file))
