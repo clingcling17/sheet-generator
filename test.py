@@ -2,6 +2,7 @@ import sys
 import zipfile
 from pathlib import Path
 import pandas as pd
+import numpy as np
 from enum import Enum
 from unittest import TestCase
 from functools import total_ordering
@@ -187,8 +188,8 @@ class ReportGenerator:
         
     def generate_snv(self):
         columns = [
-            Col.FUNC1_GENE_NAME, Col.AA_CHANGE, Col.NUCLEOTIDE_CHANGE, Col.VAF,
-            Col.TOTAL_DEPTH, Col.VARIANT_COUNT, Col.REFSEQ, Col.MUTATION_TYPE, 
+            Col.FUNC1_GENE_NAME, Col.NUCLEOTIDE_CHANGE, Col.AA_CHANGE, 
+            Col.TOTAL_DEPTH, Col.VAF, Col.VARIANT_COUNT, Col.REFSEQ, Col.MUTATION_TYPE, 
             Col.ONCOMINE_GENE_CLASS, Col.HOTSPOT, Col.LOCATION, Col.ROWTYPE, 
             Col.COSM_ID, Col.REFSNP_ID, Col.REFSNP_STAT, 
             Col.CLINICAL_SIGNIFICANCE, Col.SIFT_SCORE, Col.POLYPHEN_SCORE, 
@@ -201,6 +202,7 @@ class ReportGenerator:
             f' and `{Col.MUTATION_TYPE}` != "synonymous"'
         # tmb_gene not in 조건은 일단 생략함.
 
+        snv.insert(4, Col.TIER.value, np.nan)
         snv = self.generate_filtered_dataframe(condition, columns)
         if not snv.empty:
             snv[Col.TIER.value] = snv.apply(self.populate_tier_default, axis=1)
@@ -224,8 +226,8 @@ class ReportGenerator:
 
     def generate_cnv(self):
         columns = [
-            Col.FUNC1_GENE_NAME, Col.CHROMOSOME, Col.POSITION, Col.END_POSITION,
-            Col.COPY_NUMBER, Col.CALL, Col.CI, Col.FILTER, Col.ROWTYPE, Col.ID,
+            Col.FUNC1_GENE_NAME, Col.COPY_NUMBER, Col.CHROMOSOME, Col.POSITION, 
+            Col.END_POSITION, Col.CALL, Col.CI, Col.FILTER, Col.ROWTYPE, Col.ID,
             Col.LENGTH, Col.ONCOMINE_GENE_CLASS, Col.HOTSPOT, Col.QUALITY, 
             Col.VCF_ROWNUM, Col.MAPD, Col.CLINICAL_SIGNIFICANCE, Col.FAIL_REASON
         ]
@@ -241,6 +243,7 @@ class ReportGenerator:
         ]
         
         cnv = self.generate_filtered_dataframe(condition, columns)
+        cnv.insert(2, Col.TIER.value, np.nan)
         if not cnv.empty:
             cnv[Col.TIER.value] = cnv.apply(self.populate_tier_default, axis=1)
             cnv.loc[(cnv[Col.ROWTYPE.value] == 'AMP') & (cnv[Col.FUNC1_GENE_NAME.value].isin(tier_2_3_gene_names)),
