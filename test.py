@@ -382,8 +382,8 @@ class ResultInfo:
             fus_2 = self.fusion.query(cond2)
 
             # TODO add GeneB
-            sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist() \
-                    + fus_1['GeneA'].tolist()
+            sig_bio = mut_1['Gene'].tolist() + amp_1['Gene'].tolist()
+                    # + fus_1['GeneA'].tolist()
             sig_bio = set(sig_bio)
             sig_bio = list(sig_bio)
             
@@ -438,6 +438,7 @@ def main():
 
     file_processor = FileProcessor(file_path, dest_path)
     case_name = file_processor.case_name
+    print('Case name: ' + case_name)
     dest_path = file_processor.unzip_to_destination_and_normalize()
 
     print('Destination path: ' + str(dest_path))
@@ -464,11 +465,40 @@ def main():
     amp = amp[[Col.FUNC1_GENE_NAME.value, Col.COPY_NUMBER.value, Col.TIER.value]]
     amp.columns = ['Gene', 'Estimated copy number', 'Tier']
 
-    fus = reports['Fusion']
-    fus = fus[[Col.INFO_1_GENE_NAME.value, Col.TOTAL_READ.value, Col.TIER.value]]
-    fus.columns = ['GeneA', 'Total Read', 'Tier']
+    def concat_chbr(row):
+        ch = row[Col.CHROMOSOME.value]
+        br = str(row[Col.POSITION.value])
+        return ch + ':' + br
 
-    print(f'`Tier` == "{Tiers.TIER_3_4}"')
+    fus = reports['Fusion']
+    chbr = 'Chromosome:Breakpoint'
+    fus[chbr] = fus.apply(concat_chbr, axis=1)
+    fus = fus.assign(chbr=fus[Col.CHROMOSOME.value] + ':' + fus[Col.POSITION.value].to_string())
+    fus = fus[[Col.INFO_1_GENE_NAME.value, chbr, Col.TOTAL_READ.value, Col.TIER.value]]
+    
+    
+
+    grouped = fus.groupby(Col.TOTAL_READ.value).agg({Col.INFO_1_GENE_NAME.value:list, chbr: list, 'Tier': list})
+    grouped.columns = ['Gene', chbr, 'Tier']
+    grouped = grouped.apply(pd.Series.explode, axis=1)
+    grouped.columns = ['GeneA', 'GeneB', chbr + 'A', chbr + 'B', 'TierA', 'TierB']
+
+    def highest(row):
+        tiers = [row['TierA'], row['TierB']]
+        if Tiers.TIER_1_2.value in tiers:
+            return Tiers.TIER_1_2.value
+        if Tiers.TIER_3.value in tiers:
+            return Tiers.TIER_3.value
+        if Tiers.TIER_3_4.value in tiers:
+            return Tiers.TIER_3_4.value
+        return ''
+    grouped['Tier'] = grouped.apply(highest, axis=1)
+
+    fus = grouped[['GeneA', chbr + 'A', 'GeneB', chbr + 'B', 'Tier']]
+    
+    # grouped.columns = [f'{col}{chr(i + 97)}' for i, col in enumerate(grouped.columns)]
+    print(fus)
+
     result_info = ResultInfo(mut, amp, fus, '`Tier` == "I/II"', '`Tier` not in ["I/II", "IV"]')
     result_text_file = Path(dest_path, "result.txt")
     result_info.print(result_text_file)
